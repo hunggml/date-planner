@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Date Planner</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  /* ============ TOKEN HỆ THỐNG ============ */
+  :root{
+    --bg-1: #fff5f7;
+    --bg-2: #fef9ec;
+    --card: #ffffff;
+    --ink:  #3a2c33;
+    --ink-dim: #9a8d94;
+    --pink: #ff5d8f;
+    --pink-soft: #ffe3ec;
+    --red-grad: linear-gradient(135deg, #ff8a8a, #ff5d8f);
+    --green: #35c46a;
+    --green-dark: #1f9a4f;
+    --radius: 15px;
+    --shadow: 0 20px 60px -20px rgba(255, 93, 143, 0.35);
+  }
+
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html, body{ height:100%; }
+
+  body{
+    font-family:'Inter', sans-serif;
+    color: var(--ink);
+    background: linear-gradient(160deg, var(--bg-1), var(--bg-2));
+    min-height:100vh;
+    display:flex; align-items:center; justify-content:center;
+    overflow:hidden;
+    position:relative;
+    padding: 24px;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration:0.001ms !important; transition-duration:0.001ms !important; }
+  }
+
+  h1, h2, .display{ font-family:'Quicksand', sans-serif; }
+
+  /* ============ HẠT TRÔI NỀN ============ */
+  #particles{ position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
+  .particle{ position:absolute; border-radius:50%; opacity:0.55; animation: floatUp linear infinite; }
+  @keyframes floatUp{
+    0%   { transform: translateY(0) translateX(0) rotate(0deg); opacity:0; }
+    10%  { opacity:0.6; }
+    90%  { opacity:0.6; }
+    100% { transform: translateY(-110vh) translateX(20px) rotate(180deg); opacity:0; }
+  }
+
+  .stage{ position:relative; z-index:1; width:100%; max-width:800px; }
+
+  .progress{ display:flex; gap:6px; justify-content:center; margin-bottom:18px; }
+  .progress i{ width:18px; height:4px; border-radius:2px; background: rgba(58,44,51,0.12); transition: background .3s ease; }
+  .progress i.done{ background: var(--pink); }
+
+  .card{
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 60px 52px;
+    text-align:center;
+    position:relative;
+    animation: cardIn .45s cubic-bezier(.2,.8,.2,1);
+  }
+  @keyframes cardIn{
+    from{ opacity:0; transform: translateY(18px) scale(.97); }
+    to{ opacity:1; transform: translateY(0) scale(1); }
+  }
+
+  .icon-circle{
+    width:56px; height:56px; border-radius:50%;
+    background: var(--pink-soft);
+    display:flex; align-items:center; justify-content:center;
+    font-size:24px; margin: 0 auto 18px;
+  }
+
+  .card h2{ font-size: 34px; font-weight:700; margin-bottom:12px; }
+  .card p.sub{ font-size:17px; color:var(--ink-dim); margin-bottom:30px; line-height:1.6; }
+
+  /* Card đặc biệt cho bước hỏi (ask) - phóng to để noBtn có không gian nhảy) */
+  .card-ask{
+    min-height: 360px;
+    padding: 52px 48px 40px;
+  }
+
+  /* ============ NÚT BẤM ============ */
+  .btn{
+    border:none; cursor:pointer;
+    font-family:'Inter', sans-serif; font-weight:600; font-size:17px;
+    border-radius: var(--radius); padding: 16px 36px;
+    transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+  }
+  .btn:active{ transform: scale(0.96); }
+
+  .btn-primary{
+    background: var(--red-grad); color:#fff; width:100%;
+    box-shadow: 0 10px 24px -8px rgba(255,93,143,0.55);
+  }
+  .btn-primary:hover{ transform: translateY(-2px); }
+  .btn-primary:disabled{ opacity:.5; cursor:not-allowed; transform:none; }
+
+  /* btn-yes grows via JS, caps at 4x */
+  .btn-yes{
+    background: var(--green); color:#fff;
+    transition: transform .4s cubic-bezier(.2,.8,.2,1), background .18s ease;
+    transform-origin: center center;
+    position: relative; z-index: 2;
+    border-radius: var(--radius);
+    flex-shrink: 0;
+  }
+  .btn-yes:hover{ background: var(--green-dark); }
+
+  .btn-no{
+    /* background: transparent; */
+    color: rgba(255, 0, 0, 0.5);
+    font-size:17px; font-weight:600;
+    /* border: 3px solid rgba(58,44,51,0.25); */
+    border-radius: var(--radius);
+    padding: 15px 36px;
+    position: absolute;   /* nhảy trong card */
+    white-space: nowrap;
+    transition: left .22s cubic-bezier(.2,.8,.2,1), top .22s cubic-bezier(.2,.8,.2,1), opacity .3s ease;
+    pointer-events: auto;
+    z-index: 10;
+    cursor: default;
+    background-color: #ffc0d2;
+  }
+  .btn-no.hiding{
+    opacity: 0 !important;
+    pointer-events: none;
+  }
+
+  /* Yes / No row — đủ cao để yesBtn phóng to và noBtn nhảy quanh */
+  .yes-no-row{
+    display:flex; align-items:center; justify-content:center;
+    position:relative;
+    height: 220px;
+    overflow: hidden;   /* giới hạn noBtn trong card */
+  }
+  .yes-no-row.centered{
+    justify-content: center;
+  }
+
+  .btn-back{
+    background:none; border:none; cursor:pointer;
+    font-family:'Inter', sans-serif;
+    font-size:13px; color:var(--ink-dim);
+    display:flex; align-items:center; gap:4px;
+    margin-bottom:14px;
+  }
+  .btn-back:hover{ color: var(--ink); }
+
+  /* ============ LƯỚI LỰA CHỌN ============ */
+  .option-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:24px; }
+  .option{
+    border:1.5px solid rgba(58,44,51,0.08);
+    background:#fff; border-radius:14px; padding:16px 10px;
+    cursor:pointer; transition: all .18s ease; text-align:center;
+  }
+  .option .emoji{ font-size:22px; display:block; margin-bottom:8px; }
+  .option .label{ font-size:13px; font-weight:600; }
+  .option:hover{ border-color: var(--pink); background: var(--pink-soft); }
+  .option.selected{ border-color: var(--pink); background: var(--pink-soft); box-shadow: 0 0 0 3px rgba(255,93,143,0.15); }
+
+  /* ============ INPUT (ngày tháng) ============ */
+  .field{
+    width:100%; padding: 16px 18px; border-radius: var(--radius);
+    border: 1.5px solid rgba(58,44,51,0.12);
+    font-family:'Inter', sans-serif; font-size:15px;
+    margin-bottom:16px; outline:none; transition: border-color .18s ease;
+    color: var(--ink);
+  }
+  .field:focus{ border-color: var(--pink); }
+
+  /* ============ DRESS CODE COLOR SWATCHES ============ */
+  .color-section{ margin-top: -8px; margin-bottom: 20px; text-align: left; }
+  .color-section-title{ font-size: 12px; color: var(--ink-dim); font-weight:600; margin-bottom:10px; text-transform:uppercase; letter-spacing:.06em; }
+  .color-swatches-row{ display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .swatch{
+    width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
+    border: 2.5px solid transparent;
+    transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+    position: relative; flex-shrink: 0;
+  }
+  .swatch:hover{ transform: scale(1.15); }
+  .swatch.active{ border-color: var(--ink); box-shadow: 0 0 0 3px rgba(58,44,51,0.15); transform: scale(1.12); }
+  .swatch .swatch-label{
+    position:absolute; bottom:-20px; left:50%; transform:translateX(-50%);
+    font-size:9px; white-space:nowrap; color:var(--ink-dim); font-weight:600;
+    opacity:0; transition: opacity .15s; pointer-events:none;
+  }
+  .swatch:hover .swatch-label, .swatch.active .swatch-label{ opacity:1; }
+  /* Custom text input next to swatches */
+  .color-custom-input{
+    flex: 1; min-width: 90px;
+    padding: 7px 12px;
+    border: 2px solid rgba(58,44,51,0.15);
+    border-radius: var(--radius);
+    font-family: 'Inter', sans-serif; font-size: 13px;
+    color: var(--ink); outline: none;
+    transition: border-color .18s ease;
+    background: #fff;
+  }
+  .color-custom-input:focus{ border-color: var(--pink); }
+  .color-custom-input::placeholder{ color: var(--ink-dim); }
+
+  /* ============ TÓM TẮT ============ */
+  .summary{ text-align:left; background: #faf7f8; border-radius: var(--radius); padding:16px 18px; margin: 18px 0 22px; }
+  .summary-row{ display:flex; align-items:flex-start; gap:12px; padding: 8px 0; }
+  .summary-row + .summary-row{ border-top:1px solid rgba(58,44,51,0.06); }
+  .summary-row .s-emoji{ font-size:17px; }
+  .summary-row .s-key{ font-size:12px; color:var(--ink-dim); }
+  .summary-row .s-val{ font-size:14px; font-weight:600; }
+
+  .start-over{
+    display:inline-block; margin-top:6px; font-size:12.5px; color:var(--ink-dim);
+    text-decoration:underline; cursor:pointer; background:none; border:none; font-family:inherit;
+  }
+
+  .send-status{ font-size:13px; margin-top:10px; min-height:18px; }
+  .send-status.ok{ color: var(--green-dark); font-weight:600; }
+  .send-status.err{ color:#c94f4f; }
+
+  .step{ display:none; }
+  .step.active{ display:block; }
+
+  .burst-heart{ position:fixed; font-size:20px; pointer-events:none; z-index:5; animation: burstUp 1.1s ease-out forwards; }
+  @keyframes burstUp{ to{ transform: translateY(-160px) scale(1.3); opacity:0; } }
+</style>
+</head>
+<body>
+
+<div id="particles"></div>
+
+<div class="stage">
+  <div class="progress" id="progress"></div>
+
+  <!-- BƯỚC: Mở đầu -->
+  <div class="step active" data-step="intro">
+    <div class="card">
+      <div class="icon-circle">✨</div>
+      <h2>Hey there!</h2>
+      <p class="sub">I've been wanting to tell you something for a while now... but I'm a bit shy.</p>
+      <button class="btn btn-primary" onclick="goTo('ask')">What is it? →</button>
+    </div>
+  </div>
+
+  <!-- BƯỚC: Lời mời -->
+  <div class="step" data-step="ask">
+    <div class="card card-ask">
+      <div class="icon-circle">💗</div>
+      <h2>Will you go out with me?</h2>
+      <div class="yes-no-row">
+        <button class="btn btn-yes" onclick="celebrate()">Yes 💝</button>
+        <button class="btn btn-no" id="noBtn">No</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BƯỚC: Celebration -->
+  <div class="step" data-step="celebrate">
+    <div class="card">
+      <div style="font-size:26px; margin-bottom:10px;">💗 ❤️ 💗</div>
+      <h2 style="color:var(--pink);">YAAAAY!!!</h2>
+      <p class="sub">You just made me the happiest person alive!</p>
+      <p style="font-weight:600; color:var(--pink); margin-bottom:22px;">It's a date! 🎉</p>
+      <button class="btn btn-primary" onclick="goTo('pickDate')">Continue →</button>
+    </div>
+  </div>
+
+  <!-- BƯỚC: Chọn ngày -->
+  <div class="step" data-step="pickDate">
+    <div class="card">
+      <button class="btn-back" onclick="goBack()">← Back</button>
+      <div class="icon-circle">📅</div>
+      <h2>When should we go?</h2>
+      <p class="sub">Pick a day that works for you!</p>
+      <input class="field" type="datetime-local" id="dateInput" id="dateInput">
+      <button class="btn btn-primary" onclick="confirmDate()">Next →</button>
+    </div>
+  </div>
+
+  <!-- BƯỚC: Loại hẹn hò - chính (Drink / Dinner) -->
+  <div class="step" data-step="kindMain">
+    <div class="card">
+      <button class="btn-back" onclick="goBack()">← Back</button>
+      <div class="icon-circle">🍽️</div>
+      <h2>What kind of date?</h2>
+      <p class="sub">Pick something you'd enjoy!</p>
+      <div class="option-grid" id="kindMainGrid">
+        <div class="option" data-value="Drink"><span class="emoji">🍹</span><span class="label">Drink</span></div>
+        <div class="option" data-value="Dinner"><span class="emoji">🍽️</span><span class="label">Dinner</span></div>
+      </div>
+      <button class="btn btn-primary" onclick="goToKindSub()">Next →</button>
+    </div>
+  </div>
+
+  <!-- BƯỚC: Loại hẹn hò - phụ (tuỳ theo Drink/Dinner) -->
+  <div class="step" data-step="kindSub">
+    <div class="card">
+      <button class="btn-back" onclick="goBack()">← Back</button>
+      <div class="icon-circle" id="kindSubIcon">☕</div>
+      <h2 id="kindSubTitle">Coffee or Cocktail?</h2>
+      <p class="sub">Narrow it down a little more!</p>
+      <div class="option-grid" id="kindSubGrid"></div>
+      <button class="btn btn-primary" onclick="confirmStep('location')">Next →</button>
+    </div>
+  </div>
+
+  <!-- BƯỚC: Địa điểm -->
+  <div class="step" data-step="location">
+    <div class="card">
+      <button class="btn-back" onclick="goBack()">← Back</button>
+      <div class="icon-circle">📍</div>
+      <h2>Where should we go?</h2>
+      <p class="sub">Let's pick the perfect spot!</p>
+      <div class="option-grid" id="locationGrid">
+        <div class="option" data-value="Your favorite spot"><span class="emoji">📍</span><span class="label">Your favorite spot</span></div>
+        <div class="option" data-value="My favorite spot"><span class="emoji">✨</span><span class="label">My favorite spot</span></div>
+        <div class="option" data-value="Surprise me!"><span class="emoji">🎲</span><span class="label">Surprise me!</span></div>
+        <div class="option" data-value="We'll decide together"><span class="emoji">🤝</span><span class="label">We'll decide together</span></div>
+      </div>
+      <button class="btn btn-primary" onclick="confirmStep('dresscode')">Next →</button>
+    </div>
+  </div>
+
+  <!-- BƯỚC: Dress code -->
+  <div class="step" data-step="dresscode">
+    <div class="card">
+      <button class="btn-back" onclick="goBack()">← Back</button>
+      <div class="icon-circle">👗</div>
+      <h2>What's the dress code?</h2>
+      <p class="sub">So we both show up matching the vibe!</p>
+      <div class="option-grid" id="dresscodeGrid">
+        <div class="option" data-value="Casual"><span class="emoji">👕</span><span class="label">Casual</span></div>
+        <div class="option" data-value="Smart Casual"><span class="emoji">👔</span><span class="label">Smart Casual</span></div>
+        <div class="option" data-value="Dressy"><span class="emoji">✨</span><span class="label">Dressy</span></div>
+        <div class="option" data-value="Comfy"><span class="emoji">🧸</span><span class="label">Comfy</span></div>
+      </div>
+
+      <div class="color-section">
+        <div class="color-section-title">🎨 Pick a colour theme</div>
+        <div class="color-swatches-row" id="colorSwatches">
+          <div class="swatch" data-color="Dusty Rose" style="background:#e8a0b4;"><span class="swatch-label">Dusty Rose</span></div>
+          <div class="swatch" data-color="Champagne" style="background:#f5d98b;"><span class="swatch-label">Champagne</span></div>
+          <div class="swatch" data-color="Sage" style="background:#a8c5a0;"><span class="swatch-label">Sage</span></div>
+          <div class="swatch" data-color="Lavender" style="background:#c3a6d8;"><span class="swatch-label">Lavender</span></div>
+          <div class="swatch" data-color="Sky Blue" style="background:#87bdd8;"><span class="swatch-label">Sky Blue</span></div>
+          <div class="swatch" data-color="Coral" style="background:#f4906a;"><span class="swatch-label">Coral</span></div>
+          <div class="swatch" data-color="Ivory" style="background:#ede8d0;"><span class="swatch-label">Ivory</span></div>
+          <div class="swatch" data-color="Midnight" style="background:#2e3a5c;"><span class="swatch-label">Midnight</span></div>
+          <input class="color-custom-input" id="colorCustomInput" type="text" placeholder="or type your own..." maxlength="30">
+        </div>
+      </div>
+
+      <button class="btn btn-primary" onclick="submitPlan()">Finish →</button>
+    </div>
+  </div>
+
+  <!-- BƯỚC: Xác nhận + gửi -->
+  <div class="step" data-step="summary">
+    <div class="card">
+      <!-- <div class="icon-circle" style="background:#e3f9ec;">✅</div> -->
+      <h2 style="color:#ffc0d2;">Perfecttttttttttttt! 🎉</h2>
+
+      <div class="summary">
+        <div class="summary-row">
+          <span class="s-emoji">📅</span>
+          <div><div class="s-key">Date</div><div class="s-val" id="sumDate">—</div></div>
+        </div>
+        <div class="summary-row">
+          <span class="s-emoji">🍽️</span>
+          <div><div class="s-key">Kind of date</div><div class="s-val" id="sumKind">—</div></div>
+        </div>
+        <div class="summary-row">
+          <span class="s-emoji">📍</span>
+          <div><div class="s-key">Location</div><div class="s-val" id="sumLocation">—</div></div>
+        </div>
+        <div class="summary-row">
+          <span class="s-emoji">👗</span>
+          <div><div class="s-key">Dress code</div><div class="s-val" id="sumDress">—</div></div>
+        </div>
+      </div>
+
+      <p style="font-weight:600;">I'll see you then! 💕</p>
+      <p class="sub" style="margin-top:4px;">Can't wait for our date! 🥰</p>
+      <div class="send-status" id="sendStatus"></div>
+      <button class="start-over" onclick="resetAll()">Start over</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  /* ============================================================
+     GỬI DỮ LIỆU KHÁCH CHỌN VỀ EMAIL CỦA BẠN (không cần backend)
+     Dùng dịch vụ miễn phí FormSubmit.co — KHÔNG cần đăng ký tài khoản:
+     1) Thay YOUR-EMAIL@example.com bên dưới bằng email thật của bạn.
+     2) Sau khi publish web và có người bấm "Finish" lần ĐẦU TIÊN,
+        FormSubmit sẽ gửi 1 email xác nhận đến bạn — bạn bấm link xác
+        nhận trong email đó MỘT LẦN DUY NHẤT để kích hoạt.
+     3) Từ lần sau trở đi, mọi lượt submit sẽ tự động gửi thẳng vào mail bạn.
+     Tài liệu: https://formsubmit.co/
+  ============================================================ */
+  const NOTIFY_EMAIL = "dvhungg123@gmail.com";
+
+  /* ============ STATE ============ */
+  const state = { date:null, kindMain:null, kindSub:null, location:null, dressCode:null, colorTheme:null };
+
+  /* Thứ tự chuẩn để tính progress bar (không phụ thuộc nhánh rẽ) */
+  const masterOrder = ['intro','ask','celebrate','pickDate','kindMain','kindSub','location','dresscode','summary'];
+
+  /* Lịch sử các bước đã đi qua, dùng cho nút Back */
+  let history = ['intro'];
+
+  function showStep(step){
+    document.querySelectorAll('.step').forEach(el=>{
+      el.classList.toggle('active', el.dataset.step === step);
+    });
+    renderProgress(step);
+  }
+
+  function goTo(step){
+    history.push(step);
+    showStep(step);
+  }
+
+  function goBack(){
+    if(history.length > 1){
+      history.pop();
+      showStep(history[history.length-1]);
+    }
+  }
+
+  function renderProgress(step){
+    const bar = document.getElementById('progress');
+    bar.innerHTML = '';
+    const idx = masterOrder.indexOf(step) + 1;
+    for(let i=1;i<=masterOrder.length;i++){
+      const dot = document.createElement('i');
+      if(i<=idx) dot.classList.add('done');
+      bar.appendChild(dot);
+    }
+  }
+  renderProgress('intro');
+
+  /* ============ NÚT "NO" — NHẢY TRONG CARD, BIẾN MẤT SAU 10 LẦN ============ */
+  const noBtn = document.getElementById('noBtn');
+  const yesBtn = document.querySelector('.btn-yes');
+  const yesNoRow = document.querySelector('.yes-no-row');
+  const noTexts = [
+    'No',
+    'Are you sure?',
+    'Are you sure?',
+    'Are you sure?',
+    'Really sure?',
+    'Think again!',
+    'Last chance!',
+    'Surely not?',
+    'You might regret this!',
+    'Okay fine... 😢'
+  ];
+  const NO_MAX = 10;
+  const YES_MAX_SCALE = 4;
+  let noHoverCount = 0;
+  let yesSizeLevel = 1;
+  let noBtnGone = false;
+
+  /* Đặt noBtn ở bên phải, giữa theo chiều dọc trong yes-no-row */
+  function initNoBtnPos(){
+    const rowW = yesNoRow.offsetWidth;
+    const rowH = yesNoRow.offsetHeight;
+    const bw = noBtn.offsetWidth;
+    const bh = noBtn.offsetHeight;
+    noBtn.style.left    = (rowW - bw - 16) + 'px';
+    noBtn.style.top     = ((rowH - bh) / 2) + 'px';
+    noBtn.style.opacity = '1';
+    noBtn.style.display = 'inline-block';
+    noBtn.classList.remove('hiding');
+    noBtnGone = false;
+  }
+
+  /* Nhảy ngẫu nhiên trong giới hạn yes-no-row */
+  function dodge(){
+    if(noBtnGone) return;
+    const rowW = yesNoRow.offsetWidth;
+    const rowH = yesNoRow.offsetHeight;
+    const bw   = noBtn.offsetWidth;
+    const bh   = noBtn.offsetHeight;
+    const maxX = Math.max(0, rowW - bw);
+    const maxY = Math.max(0, rowH - bh);
+    noBtn.style.left = (Math.random() * maxX) + 'px';
+    noBtn.style.top  = (Math.random() * maxY) + 'px';
+  }
+
+  /* Biến mất, yes nảy giữa */
+  function vanishNoBtn(){
+    noBtnGone = true;
+    noBtn.classList.add('hiding');
+    setTimeout(()=>{ noBtn.style.display = 'none'; }, 400);
+    // yes nảy ra giữa
+    yesNoRow.classList.add('centered');
+    // reset scale để re-trigger transition
+    yesBtn.style.transition = 'transform .5s cubic-bezier(.2,.8,.2,1), background .18s ease';
+    yesBtn.style.transform = `scale(${YES_MAX_SCALE})`;
+  }
+
+  function onNoDodge(){
+    if(noBtnGone) return;
+    noHoverCount++;
+    const textIdx = Math.min(noHoverCount - 1, noTexts.length - 1);
+    noBtn.textContent = noTexts[textIdx];
+    // Phóng to yes từng bước đến x4
+    yesSizeLevel = 1 + (noHoverCount / NO_MAX) * (YES_MAX_SCALE - 1);
+    yesSizeLevel = Math.min(yesSizeLevel, YES_MAX_SCALE);
+    yesBtn.style.transform = `scale(${yesSizeLevel})`;
+    if(noHoverCount >= NO_MAX){
+      vanishNoBtn();
+    } else {
+      dodge();
+    }
+  }
+
+  // Khởi tạo vị trí sau khi DOM render xong
+  requestAnimationFrame(()=>{ requestAnimationFrame(()=>{ initNoBtnPos(); }); });
+
+  noBtn.addEventListener('mouseenter', onNoDodge);
+  noBtn.addEventListener('click', (e)=>{ e.preventDefault(); onNoDodge(); });
+  noBtn.addEventListener('touchstart', (e)=>{ e.preventDefault(); onNoDodge(); });
+
+  /* ============ HIỆU ỨNG TRÁI TIM BAY LÊN ============ */
+  function celebrate(){
+    for(let i=0;i<10;i++){
+      setTimeout(()=>{
+        const h = document.createElement('div');
+        h.className='burst-heart';
+        h.textContent = ['💗','❤️','💕','💖'][Math.floor(Math.random()*4)];
+        h.style.left = (window.innerWidth/2 + (Math.random()*160-80)) + 'px';
+        h.style.top = (window.innerHeight/2 + 40) + 'px';
+        document.body.appendChild(h);
+        setTimeout(()=>h.remove(), 1200);
+      }, i*60);
+    }
+    setTimeout(()=>goTo('celebrate'), 500);
+  }
+
+  /* ============ BƯỚC CHỌN NGÀY (datetime-local, disable 16/7 và 17/7/2026) ============ */
+  function isDisabledDate(chosen){
+    const m = chosen.getMonth() + 1;
+    const d = chosen.getDate();
+    const y = chosen.getFullYear();
+    if(m === 7 && d === 16) return '🚫 Ngày 16/7 không khả dụng — vui lòng chọn ngày khác!';
+    if(m === 7 && d === 17 && y === 2026) return '🚫 Ngày 17/7/2026 không khả dụng — vui lòng chọn ngày khác!';
+    return null;
+  }
+
+  (function setupDateInput(){
+    const input = document.getElementById('dateInput');
+    const now = new Date();
+    const pad = n => String(n).padStart(2,'0');
+    const todayStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T00:00`;
+    input.min = todayStr;
+
+    input.addEventListener('change', ()=>{
+      const val = input.value;
+      if(!val) return;
+      const err = isDisabledDate(new Date(val));
+      if(err){
+        input.value = '';
+        input.setCustomValidity(err);
+        input.reportValidity();
+        setTimeout(()=>input.setCustomValidity(''), 2500);
+      } else {
+        input.setCustomValidity('');
+      }
+    });
+  })();
+
+  function confirmDate(){
+    const val = document.getElementById('dateInput').value;
+    if(val){
+      const chosen = new Date(val);
+      const err = isDisabledDate(chosen);
+      if(err){
+        const input = document.getElementById('dateInput');
+        input.setCustomValidity(err);
+        input.reportValidity();
+        setTimeout(()=>input.setCustomValidity(''), 2500);
+        return;
+      }
+      const opts = { weekday:'long', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' };
+      state.date = chosen.toLocaleString('vi-VN', opts);
+    } else {
+      state.date = 'No date picked yet';
+    }
+    goTo('kindMain');
+  }
+
+  /* ============ CHỌN Ô TRONG LƯỚI (dùng chung) ============ */
+  function setupGrid(gridId, onSelect){
+    const grid = document.getElementById(gridId);
+    grid.querySelectorAll('.option').forEach(opt=>{
+      opt.addEventListener('click', ()=>{
+        grid.querySelectorAll('.option').forEach(o=>o.classList.remove('selected'));
+        opt.classList.add('selected');
+        onSelect(opt.dataset.value);
+      });
+    });
+  }
+  setupGrid('kindMainGrid', (val)=>{ state.kindMain = val; });
+  setupGrid('locationGrid', (val)=>{ state.location = val; });
+  setupGrid('dresscodeGrid', (val)=>{ state.dressCode = val; });
+
+  /* ============ COLOR SWATCHES + CUSTOM INPUT (dress code) ============ */
+  const colorCustomInput = document.getElementById('colorCustomInput');
+
+  document.querySelectorAll('#colorSwatches .swatch').forEach(sw=>{
+    sw.addEventListener('click', ()=>{
+      document.querySelectorAll('#colorSwatches .swatch').forEach(s=>s.classList.remove('active'));
+      sw.classList.add('active');
+      state.colorTheme = sw.dataset.color;
+      // Clear custom input khi chọn swatch
+      colorCustomInput.value = '';
+    });
+  });
+
+  // Custom text input — khi gõ thì bỏ active swatch
+  colorCustomInput.addEventListener('input', ()=>{
+    const v = colorCustomInput.value.trim();
+    if(v){
+      document.querySelectorAll('#colorSwatches .swatch').forEach(s=>s.classList.remove('active'));
+      state.colorTheme = v;
+    } else {
+      // Nếu xóa hết thì reset
+      state.colorTheme = null;
+    }
+  });
+
+  /* ============ BƯỚC PHỤ: DRINK -> Coffee/Cocktail | DINNER -> Sushi/Steak ============ */
+  const kindSubOptions = {
+    Drink:  { icon:'☕', title:'Coffee or Cocktail?', items:[
+                { value:'Coffee',   emoji:'☕' },
+                { value:'Cocktail', emoji:'🍸' } ]},
+    Dinner: { icon:'🍣', title:'Sushi or Steak?', items:[
+                { value:'Sushi', emoji:'🍣' },
+                { value:'Steak', emoji:'🥩' } ]}
+  };
+
+  function goToKindSub(){
+    const main = state.kindMain || 'Drink'; // mặc định Drink nếu chưa chọn
+    state.kindMain = main;
+    const config = kindSubOptions[main];
+
+    document.getElementById('kindSubIcon').textContent = config.icon;
+    document.getElementById('kindSubTitle').textContent = config.title;
+
+    const grid = document.getElementById('kindSubGrid');
+    grid.innerHTML = config.items.map(it =>
+      `<div class="option" data-value="${it.value}"><span class="emoji">${it.emoji}</span><span class="label">${it.value}</span></div>`
+    ).join('');
+
+    state.kindSub = null;
+    setupGrid('kindSubGrid', (val)=>{ state.kindSub = val; });
+
+    goTo('kindSub');
+  }
+
+  function confirmStep(next){
+    goTo(next);
+  }
+
+  /* ============ GỬI KẾT QUẢ + HIỂN THỊ TÓM TẮT ============ */
+  function submitPlan(){
+    document.getElementById('sumDate').textContent = state.date || 'Not selected';
+    document.getElementById('sumKind').textContent = (state.kindMain && state.kindSub)
+      ? `${state.kindMain} — ${state.kindSub}` : 'Not selected';
+    document.getElementById('sumLocation').textContent = state.location || 'Not selected';
+    const dressText = state.dressCode
+      ? (state.colorTheme ? `${state.dressCode} · ${state.colorTheme}` : state.dressCode)
+      : 'Not selected';
+    document.getElementById('sumDress').textContent = dressText;
+
+    goTo('summary');
+    sendToEmail();
+  }
+
+  function sendToEmail(){
+    const statusEl = document.getElementById('sendStatus');
+    statusEl.textContent = 'Sending your answers...';
+    statusEl.className = 'send-status';
+
+    fetch(`https://formsubmit.co/ajax/${NOTIFY_EMAIL}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        _subject: '💌 New date planner response',
+        Date: state.date,
+        'Kind of date': `${state.kindMain} - ${state.kindSub}`,
+        Location: state.location,
+        'Dress code': state.dressCode
+          ? (state.colorTheme ? `${state.dressCode} · ${state.colorTheme}` : state.dressCode)
+          : 'Not selected'
+      })
+    })
+    .then(res => res.json())
+    .then(() => {
+      statusEl.textContent = 'Sent! I\'ll get your answers by email 💌';
+      statusEl.className = 'send-status ok';
+    })
+    .catch((err) => {
+      console.error('Gửi thất bại:', err);
+      statusEl.textContent = 'Could not send automatically — but no worries, I\'ll ask you in person!';
+      statusEl.className = 'send-status err';
+    });
+  }
+
+  /* ============ RESET ============ */
+  function resetAll(){
+    state.date = null; state.kindMain = null; state.kindSub = null;
+    state.location = null; state.dressCode = null; state.colorTheme = null;
+    document.querySelectorAll('.option.selected').forEach(o=>o.classList.remove('selected'));
+    document.querySelectorAll('#colorSwatches .swatch.active').forEach(s=>s.classList.remove('active'));
+    colorCustomInput.value = '';
+    document.getElementById('dateInput').value = '';
+    document.getElementById('sendStatus').textContent = '';
+    // Reset noBtn & yesBtn
+    noBtn.textContent = 'No';
+    noHoverCount = 0;
+    yesSizeLevel = 1;
+    noBtnGone = false;
+    noBtn.classList.remove('hiding');
+    noBtn.style.display   = 'inline-block';
+    noBtn.style.opacity   = '1';
+    yesBtn.style.transition = 'transform .4s cubic-bezier(.2,.8,.2,1), background .18s ease';
+    yesBtn.style.transform = 'scale(1)';
+    yesNoRow.classList.remove('centered');
+    history = ['intro'];
+    showStep('intro');
+    requestAnimationFrame(()=>{ requestAnimationFrame(()=>{ initNoBtnPos(); }); });
+  }
+
+  /* ============ HẠT TRÔI NỀN ============ */
+  const colors = ['#ff5d8f','#ffd166','#a0e7e5','#c9a7ff'];
+  const field = document.getElementById('particles');
+  const PARTICLE_COUNT = 50;
+  for(let i=0;i<PARTICLE_COUNT;i++){
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const size = 4 + Math.random()*6;
+    p.style.width = size+'px';
+    p.style.height = size+'px';
+    p.style.left = Math.random()*100 + 'vw';
+    p.style.bottom = '-20px';
+    p.style.background = colors[Math.floor(Math.random()*colors.length)];
+    const duration = 10 + Math.random()*14;
+    p.style.animationDuration = duration+'s';
+    p.style.animationDelay = (Math.random()*duration)+'s';
+    field.appendChild(p);
+  }
+</script>
+
+</body>
+</html>
